@@ -1,81 +1,215 @@
 #include "TextBox.hpp"
-#include "FileExplorer.hpp"
+#include "Explore.hpp"
+#include <fstream>
+#include <filesystem>
 
-void addTextBox(std::vector<TextBox*>& v, sf::RenderWindow& win);
+#ifdef _WIN32
+#include <windows.h>
+std::string getExePath()
+{
+	char buffer[MAX_PATH];
+	GetModuleFileNameA(NULL, buffer, MAX_PATH);
+	return std::string(buffer).substr(0, std::string(buffer).find_last_of("\\/"));
+}
+#else
+#include <libgen.h>
+#include <unistd.h>
+#include <linux/limits.h>
+
+std::string getExePath()
+{
+	char result[PATH_MAX];
+	ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+	const char* path;
+	if(count != -1) {
+		path = dirname(result);
+	}
+	return *path;
+}
+#endif
+
+//not my code
+bool isValidUTF8(std::string& str)
+{
+	for(size_t i = 0; i < str.length(); ) {
+		unsigned char current = static_cast<unsigned char>(str[i]);
+		if(current <= 0x7F) {
+			// Single-byte character (0xxxxxxx)
+			i += 1;
+		}
+		else if(current <= 0xDF && i + 1 < str.length()) {
+			// Two-byte character (110xxxxx 10xxxxxx)
+			if((static_cast<unsigned char>(str[i + 1]) & 0xC0) != 0x80) {
+				return false; // Invalid UTF-8 sequence
+			}
+			i += 2;
+		}
+		else if(current <= 0xEF && i + 2 < str.length()) {
+			// Three-byte character (1110xxxx 10xxxxxx 10xxxxxx)
+			if((static_cast<unsigned char>(str[i + 1]) & 0xC0) != 0x80 ||
+				(static_cast<unsigned char>(str[i + 2]) & 0xC0) != 0x80) {
+				return false; // Invalid UTF-8 sequence
+			}
+			i += 3;
+		}
+		else {
+			return false; // Invalid UTF-8 character
+		}
+	}
+	return true;
+}
+//end
+
+sf::String readFile(std::string filepath)
+{
+	std::ifstream file(filepath, std::ios::binary);
+	if(!file.is_open()) return "";
+	std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	file.close();
+	if(isValidUTF8(content))
+	{
+		std::wstringstream buffer;
+		std::wifstream file;
+
+		file.imbue(std::locale(".UTF8"));
+
+		file.open(filepath);
+		if(file)buffer << file.rdbuf();
+		else return "";
+		file.close();
+
+		return buffer.str();
+	}
+	return content;
+}
+
+bool fileWrite(std::string path, std::string text)
+{
+	std::fstream file;
+	file.open(path, std::ios::out);
+	if(!file) return false;
+	file << text;
+	file.close();
+	return true;
+}
+bool fileWrite(std::string path, std::wstring text)
+{
+	std::wfstream file;
+	file.open(path, std::ios::out);
+	if(!file) return false;
+	file << text;
+	file.close();
+	return true;
+}
+
+//(68, 166, 239)
+//(182, 89, 210)
+//(122, 178, 212)
+
+struct Tab
+{
+	gui::TextBox textbox;
+	std::string file_path;
+	std::string encode;
+};
+
+sf::Color
+	//textbox
+	textbox_text_color = sf::Color(200, 200, 200),
+	textbox_background_color = sf::Color(40, 44, 52, 150),
+	textbox_cursor_color = sf::Color(200, 200, 200),
+	textbox_selection_color,
+	//explorer
+	explorer_background_color,
+	explorer_file_text_color,
+	explorer_folder_text_color;
+
+std::string textbox_background_image, font_path;
+
+void loadWindowIcon(sf::RenderWindow&, std::string);
+void setUpTextBox();
 
 int main(int argc, char* argv[])
 {
-	sf::RenderWindow win(sf::VideoMode(1000, 800), "MyTextEditor");
-	sf::View view = win.getView();
+	sf::String current_path = std::filesystem::current_path().wstring(), exe_path = getExePath();
+
+	sf::RenderWindow win(sf::VideoMode(800, 500), "SpicyCode");
+	sf::View view;
 	sf::Event e;
+	
+	loadWindowIcon(win, exe_path + "/icon.png");
+	font_path = exe_path + "/font/font.otf";
 
-	std::vector<TextBox*> textboxes;
-	addTextBox(textboxes, win);
-	int i = 0;
-	//textboxes[i]->loadSpecialKeys({"int", "float", "double", "char", "bool", "short", "long", "unsigned"}, sf::Color::Red);
+	sf::Font font;
+	font.loadFromFile(exe_path + "/font/font.otf");
 
-	win.setFramerateLimit(50);
-	win.setView(view);
-	while (win.isOpen())
+	bool edit_mode = false;
+	gui::TextBox* base_textbox = new gui::TextBox;
+	base_textbox->init(win);
+	base_textbox->setSize((sf::Vector2f)win.getSize());
+	base_textbox->setFocus(true);
+	base_textbox->setFont(font);
+	base_textbox->setTextColor(textbox_text_color);
+	base_textbox->setCursorColor(textbox_cursor_color);
+	base_textbox->setBackgroundColor(textbox_background_color);
+
+	bool explore_mode = true;
+	gui::Explore explore;
+	explore.init(win);
+	explore.setCurrentPath(current_path);
+	explore.setFont(font);
+	explore.setSize((sf::Vector2f)win.getSize());
+	explore.setFileImage(exe_path + "/icons/explorer/file.png");
+	explore.setFolderImage(exe_path + "/icons/explorer/folder.png");
+
+	std::vector<Tab> tabs;
+	std::vector<sf::String> file_paths;
+	std::size_t current_file = 0;
+	
+	if(argc > 1)
 	{
-		while (win.pollEvent(e))
+		
+		for(int i = 1; i < argc; i++)
 		{
-			if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) && e.type == sf::Event::KeyPressed)
-			{
-				switch (e.key.code)
-				{
-				case sf::Keyboard::N:
-					addTextBox(textboxes, win);
-					i = textboxes.size() - 1;
-					break;
-				case sf::Keyboard::Tab:
-					i++;
-					if (i >= textboxes.size()) i = 0;
-					break;
-				case sf::Keyboard::O:
-					addTextBox(textboxes, win);
-					i = textboxes.size() - 1;
-					break;
-				case sf::Keyboard::S:
+			
+		}
+	}
+	if(tabs.size() == 0)
+	{
+		
+	}
 
-					break;
-				case sf::Keyboard::W:
-					textboxes.erase(textboxes.begin() + i);
-					if(i > 0) i--;
-					if (textboxes.size() == 0) addTextBox(textboxes, win);
-					break;
-				}
-			}
-			if (e.type == sf::Event::Resized)
+	win.setFramerateLimit(120);
+	while(win.isOpen())
+	{
+		while(win.pollEvent(e))
+		{
+			if(explore_mode) explore.listen(e);
+			if(edit_mode) explore.listen(e);
+
+			if(e.type == sf::Event::Resized)
 			{
 				view.reset({0, 0, (float)win.getSize().x, (float)win.getSize().y});
 				win.setView(view);
-
-				textboxes[i]->setSize(sf::Vector2f(win.getSize()));
+				
+				for(Tab& tab_i : tabs) tab_i.textbox.setSize((sf::Vector2f)win.getSize());
+				explore.setSize((sf::Vector2f)win.getSize());
 			}
-			
-			textboxes[i]->listen(e);
-			
-			if (e.type == sf::Event::Closed) win.close();
+			if(e.type == sf::Event::Closed) win.close();
 		}
 		win.clear();
-
-		textboxes[i]->draw();
-
+		
+		if(explore_mode) explore.draw();
+		if(edit_mode) explore.draw();
+		
 		win.display();
 	}
 	return 0;
 }
 
-void addTextBox(std::vector<TextBox*>& v, sf::RenderWindow& win)
+void loadWindowIcon(sf::RenderWindow& window, std::string path)
 {
-	v.push_back(new TextBox);
-	v[v.size()-1]->setUp(win, 0, 0, win.getSize().x, win.getSize().y);
-	v[v.size()-1]->setFont("font.ttf");
-	v[v.size()-1]->setChSize(18);
-	v[v.size()-1]->setMultiLines(true);
-	v[v.size()-1]->setBarColor(sf::Color::Black);
-	v[v.size()-1]->setBgColor(sf::Color::White);
-	v[v.size()-1]->setTextColor(sf::Color::Black);
-	v[v.size()-1]->setFocus();
+	sf::Image img;
+	if(!img.loadFromFile(path)) return;
+	window.setIcon(img.getSize().x, img.getSize().y, img.getPixelsPtr());
 }
