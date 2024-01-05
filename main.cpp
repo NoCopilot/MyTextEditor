@@ -2,9 +2,16 @@
 #include "Explore.hpp"
 #include <fstream>
 #include <filesystem>
+#include <iostream>
 
 #ifdef _WIN32
 #include <windows.h>
+bool isAbsolutePath(std::wstring path)
+{
+	if(path.size() < 3) return false;
+	if(	path[0] == 'C' && path[1] == ':' && (path[2] == '/' || path[2] == '\\')) return true;
+	return false;
+}
 std::string getExePath()
 {
 	char buffer[MAX_PATH];
@@ -15,7 +22,12 @@ std::string getExePath()
 #include <libgen.h>
 #include <unistd.h>
 #include <linux/limits.h>
-
+bool isAbsolutePath(std::wstring path)
+{
+	if(path.size() < 1) return false;
+	if(path[0] == '/') return true;
+	return false;
+}
 std::string getExePath()
 {
 	char result[PATH_MAX];
@@ -28,23 +40,53 @@ std::string getExePath()
 }
 #endif
 
+std::wstring adjustSlash(std::wstring path)
+{
+	std::wstring res = path;
+	for(auto& ch : res)
+		if(ch == '\\') ch = '/';
+	return res;
+}
+
+std::wstring normalizePath(std::wstring path)
+{
+	auto v = split(path, '/');
+	std::wstring res = v[0] + "/";
+
+	for(size_t i = 1; i < v.size(); i++)
+	{
+		if(v[i] == "..")
+		{
+			if(i == 1) continue;
+			res = res.substr(0, res.rfind('/')+1);
+			continue;
+		}
+		if(v[i] == ".") continue;
+		res += v[i] + "/";
+	}
+	res.erase(res.size()-1);
+
+	return res;
+}
+
 //not my code
 bool isValidUTF8(std::string& str)
 {
-	for(size_t i = 0; i < str.length(); ) {
+	for(size_t i = 0; i < str.length();)
+	{
 		unsigned char current = static_cast<unsigned char>(str[i]);
-		if(current <= 0x7F) {
-			// Single-byte character (0xxxxxxx)
-			i += 1;
-		}
-		else if(current <= 0xDF && i + 1 < str.length()) {
+		// Single-byte character (0xxxxxxx)
+		if(current <= 0x7F)	i += 1;
+		else if(current <= 0xDF && i + 1 < str.length())
+		{
 			// Two-byte character (110xxxxx 10xxxxxx)
 			if((static_cast<unsigned char>(str[i + 1]) & 0xC0) != 0x80) {
 				return false; // Invalid UTF-8 sequence
 			}
 			i += 2;
 		}
-		else if(current <= 0xEF && i + 2 < str.length()) {
+		else if(current <= 0xEF && i + 2 < str.length())
+		{
 			// Three-byte character (1110xxxx 10xxxxxx 10xxxxxx)
 			if((static_cast<unsigned char>(str[i + 1]) & 0xC0) != 0x80 ||
 				(static_cast<unsigned char>(str[i + 2]) & 0xC0) != 0x80) {
@@ -52,9 +94,7 @@ bool isValidUTF8(std::string& str)
 			}
 			i += 3;
 		}
-		else {
-			return false; // Invalid UTF-8 character
-		}
+		else return false; // Invalid UTF-8 character
 	}
 	return true;
 }
@@ -127,11 +167,11 @@ sf::Color
 std::string textbox_background_image, font_path;
 
 void loadWindowIcon(sf::RenderWindow&, std::string);
-void setUpTextBox();
 
 int main(int argc, char* argv[])
 {
 	sf::String current_path = std::filesystem::current_path().wstring(), exe_path = getExePath();
+	sf::String visual_path = current_path;
 
 	sf::RenderWindow win(sf::VideoMode(800, 500), "SpicyCode");
 	sf::View view;
@@ -153,19 +193,10 @@ int main(int argc, char* argv[])
 	base_textbox->setCursorColor(textbox_cursor_color);
 	base_textbox->setBackgroundColor(textbox_background_color);
 
-	bool explore_mode = true;
-	gui::Explore explore;
-	explore.init(win);
-	explore.setCurrentPath(current_path);
-	explore.setFont(font);
-	explore.setSize((sf::Vector2f)win.getSize());
-	explore.setFileImage(exe_path + "/icons/explorer/file.png");
-	explore.setFolderImage(exe_path + "/icons/explorer/folder.png");
-
 	std::vector<Tab> tabs;
 	std::vector<sf::String> file_paths;
 	std::size_t current_file = 0;
-	
+
 	if(argc > 1)
 	{
 		
@@ -178,6 +209,15 @@ int main(int argc, char* argv[])
 	{
 		
 	}
+
+	bool explore_mode = true;
+	gui::Explore explore;
+	explore.init(win);
+	explore.setCurrentPath(visual_path);
+	explore.setFont(font);
+	explore.setSize((sf::Vector2f)win.getSize());
+	explore.setFileImage(exe_path + "/icons/explorer/file.png");
+	explore.setFolderImage(exe_path + "/icons/explorer/folder.png");
 
 	win.setFramerateLimit(120);
 	while(win.isOpen())

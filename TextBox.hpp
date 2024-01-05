@@ -12,6 +12,8 @@
 #define CDELETE 127
 #define TAB 9
 
+std::vector<sf::String> split(sf::String, char);
+
 namespace gui
 {
 	struct Interval
@@ -24,8 +26,6 @@ namespace gui
 			color = c;
 		}
 	};
-
-	std::vector<sf::String> split(sf::String, char);
 
 	class TextBox
 	{

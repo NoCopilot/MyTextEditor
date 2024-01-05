@@ -312,26 +312,37 @@ namespace gui
 		std::vector<Element> res;
 		std::wstring temp_str;
 		std::string temp_time;
+
 		for(auto const& dir : std::filesystem::directory_iterator{path})
 		{
 			temp_str = dir.path().wstring();
 			temp_time = std::format("{}", std::filesystem::last_write_time(dir));
 
-			if(std::filesystem::is_directory(temp_str))
-			{
-				res.insert(res.begin(), Element(
-					temp_str.substr(temp_str.find_last_of(L"\\/") + 1),
-					temp_time.substr(0, temp_time.rfind('.')),
-					""
-				));
-			}
-			else
-			{
-				res.insert(res.begin(), Element(
-					temp_str.substr(temp_str.find_last_of(L"\\/") + 1),
-					temp_time.substr(0, temp_time.rfind('.')),
-					toString(dir.file_size())
-				));
+			if(std::filesystem::exists(dir.path())) {
+				try
+				{
+					std::filesystem::file_status file_status = std::filesystem::status(dir.path());
+					if(std::filesystem::is_directory(file_status))
+					{
+						res.insert(res.begin(), Element(
+							temp_str.substr(temp_str.find_last_of(L"\\/") + 1),
+							temp_time.substr(0, temp_time.rfind('.')),
+							""
+						));
+					}
+					else
+					{
+						res.push_back(Element(
+							temp_str.substr(temp_str.find_last_of(L"\\/") + 1),
+							temp_time.substr(0, temp_time.rfind('.')),
+							toString(dir.file_size())
+						));
+					}
+				}
+				catch(const std::filesystem::filesystem_error& ex)
+				{
+					//error
+				}
 			}
 		}
 		return res;

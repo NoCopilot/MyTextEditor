@@ -1,24 +1,24 @@
 #include "TextBox.hpp"
 
+std::vector<sf::String> split(sf::String str, char del)
+{
+	std::vector<sf::String> res;
+	sf::String s = "";
+	for(std::size_t i = 0; i < str.getSize(); i++)
+	{
+		if((char)str[i] == del) {
+			res.push_back(s);
+			s = "";
+			continue;
+		}
+		s += str[i];
+	}
+	res.push_back(s);
+	return res;
+}
+
 namespace gui
 {
-	std::vector<sf::String> split(sf::String str, char del)
-	{
-		std::vector<sf::String> res;
-		sf::String s = "";
-		for(std::size_t i = 0; i < str.getSize(); i++)
-		{
-			if((char)str[i] == del) {
-				res.push_back(s);
-				s = "";
-				continue;
-			}
-			s += str[i];
-		}
-		res.push_back(s);
-		return res;
-	}
-
 	void TextBox::init(sf::RenderWindow& window)
 	{
 		win = &window;
