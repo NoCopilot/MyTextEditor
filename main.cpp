@@ -2,6 +2,7 @@
 #include "Explore.hpp"
 #include <fstream>
 #include <filesystem>
+#include <locale>
 #include <iostream>
 
 #ifdef _WIN32
@@ -100,10 +101,17 @@ bool isValidUTF8(std::string& str)
 }
 //end
 
-sf::String readFile(std::string filepath)
+struct ReadedFile
+{
+	sf::String content;
+	bool utf8_encode;
+};
+
+ReadedFile readFile(std::wstring filepath)
 {
 	std::ifstream file(filepath, std::ios::binary);
-	if(!file.is_open()) return "";
+	if(!file.is_open()) return {"", false};
+	
 	std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 	file.close();
 	if(isValidUTF8(content))
@@ -114,13 +122,15 @@ sf::String readFile(std::string filepath)
 		file.imbue(std::locale(".UTF8"));
 
 		file.open(filepath);
-		if(file)buffer << file.rdbuf();
-		else return "";
+		
+		if(file) buffer << file.rdbuf();
+		else return {"", true};
+		
 		file.close();
 
-		return buffer.str();
+		return {buffer.str(), true};
 	}
-	return content;
+	return {content, false};
 }
 
 bool fileWrite(std::string path, std::string text)
@@ -149,8 +159,8 @@ bool fileWrite(std::string path, std::wstring text)
 struct Tab
 {
 	gui::TextBox textbox;
-	std::string file_path;
-	std::string encode;
+	sf::String file_path;
+	bool utf8_encode;
 };
 
 sf::Color
@@ -167,6 +177,7 @@ sf::Color
 std::string textbox_background_image, font_path;
 
 void loadWindowIcon(sf::RenderWindow&, std::string);
+void addTab(std::vector<Tab>&, gui::TextBox*, sf::String, size_t&);
 
 int main(int argc, char* argv[])
 {
@@ -207,7 +218,7 @@ int main(int argc, char* argv[])
 	}
 	if(tabs.size() == 0)
 	{
-		
+		addTab(tabs, base_textbox, "", current_file);
 	}
 
 	bool explore_mode = true;
@@ -218,29 +229,72 @@ int main(int argc, char* argv[])
 	explore.setSize((sf::Vector2f)win.getSize());
 	explore.setFileImage(exe_path + "/icons/explorer/file.png");
 	explore.setFolderImage(exe_path + "/icons/explorer/folder.png");
+	sf::String path_to_open;
 
 	win.setFramerateLimit(120);
 	while(win.isOpen())
 	{
 		while(win.pollEvent(e))
 		{
-			if(explore_mode) explore.listen(e);
-			if(edit_mode) explore.listen(e);
-
-			if(e.type == sf::Event::Resized)
+			if(edit_mode) tabs[current_file].textbox.listen(e);
+			if(explore_mode)
 			{
-				view.reset({0, 0, (float)win.getSize().x, (float)win.getSize().y});
-				win.setView(view);
-				
-				for(Tab& tab_i : tabs) tab_i.textbox.setSize((sf::Vector2f)win.getSize());
-				explore.setSize((sf::Vector2f)win.getSize());
+				explore.listen(e);
+				path_to_open = explore.getSelectedFile();
+				if(path_to_open != L"")
+				{
+					addTab(tabs, base_textbox, adjustSlash(path_to_open), current_file);
+
+					explore.clearSelectedFile();
+					edit_mode = true;
+					explore_mode = false;
+					win.pollEvent(e);
+				}
 			}
-			if(e.type == sf::Event::Closed) win.close();
+
+			switch(e.type)
+			{
+				case sf::Event::KeyPressed:
+					if(e.key.code == sf::Keyboard::Escape && sf::Keyboard::isKeyPressed(sf::Keyboard::LShift))
+					{
+						if(edit_mode)
+						{
+							edit_mode = false;
+							explore_mode = true;
+						}
+						else
+						{
+							explore_mode = false;
+							edit_mode = true;
+						}
+					}
+					if(e.key.code == sf::Keyboard::Tab)
+					{
+						if(sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
+						{
+							//switch tabs
+						}
+					}
+					break;
+				case sf::Event::Resized:
+
+					view.reset({0, 0, (float)win.getSize().x, (float)win.getSize().y});
+					win.setView(view);
+
+					base_textbox->setSize((sf::Vector2f)win.getSize());
+					for(Tab& tab_i : tabs) tab_i.textbox.setSize((sf::Vector2f)win.getSize());
+					explore.setSize((sf::Vector2f)win.getSize());
+
+					break;
+				case sf::Event::Closed:
+					win.close();
+					break;
+			}
 		}
 		win.clear();
 		
 		if(explore_mode) explore.draw();
-		if(edit_mode) explore.draw();
+		if(edit_mode) tabs[current_file].textbox.draw();
 		
 		win.display();
 	}
@@ -252,4 +306,31 @@ void loadWindowIcon(sf::RenderWindow& window, std::string path)
 	sf::Image img;
 	if(!img.loadFromFile(path)) return;
 	window.setIcon(img.getSize().x, img.getSize().y, img.getPixelsPtr());
+}
+
+void addTab(std::vector<Tab>& tabs, gui::TextBox* bt, sf::String path, size_t& index)
+{
+	if(tabs.size() != 0 && tabs[0].file_path == "" && tabs[0].textbox.getTextAsString() == "")
+	{
+		index = 0;
+		goto overrideTab;
+	}
+	
+	for(size_t i = 0; i < tabs.size(); i++)
+	{
+		if(tabs[i].file_path == path)
+		{
+			index = i;
+			return;
+		}
+	}
+
+	index = tabs.size();
+	tabs.push_back(Tab{*bt, path});
+	
+	overrideTab:{}
+
+	ReadedFile file = readFile(path);
+	tabs[index].utf8_encode = file.utf8_encode;
+	tabs[index].textbox.writeText(file.content);
 }
