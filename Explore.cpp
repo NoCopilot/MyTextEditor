@@ -1,5 +1,42 @@
 #include "Explore.hpp"
 #include <iostream>
+
+sf::String adjustSlash(sf::String path)
+{
+	std::wstring res = path;
+	for(auto& ch : res)
+		if(ch == '\\') ch = '/';
+	return res;
+}
+
+sf::String formatSize(sf::String _size)
+{
+	if(_size == "0") return "1 KB";
+	if(_size.getSize() <= 3) return _size + " KB";
+	size_t i = _size.getSize()-3;
+	while(true)
+	{
+		_size.insert(i, ".");
+		if(i <= 3) break;
+		i -= 3;
+	}
+	return _size + " KB";
+}
+
+sf::String toString(int n)
+{
+	int i = 0;
+	sf::String res("");
+
+	while(n > 0)
+	{
+		res = (char)(n % 10 + 48) + res;
+		n /= 10;
+	}
+	if(res == "") return "0";
+	return res;
+}
+
 namespace gui
 {
 	////////////////////////////////////
@@ -12,8 +49,10 @@ namespace gui
 		pos = sf::Vector2f(0.f, 0.f);
 		size = sf::Vector2f(300.f, 300.f);
 		background.setFillColor(sf::Color(30, 30, 30));
+		path_background_rect.setFillColor(sf::Color(30, 30, 30));
 		resetView();
 
+		offset = 30.f;
 		icon_offset = 10.f;
 		setTextSize(18);
 		dir_color = sf::Color::White;
@@ -31,20 +70,20 @@ namespace gui
 				view.setSize((sf::Vector2f)win->getSize());
 				resetView();
 				break;
-			case sf::Event::MouseWheelScrolled:
-				//e.mouseWheelScroll.delta  down -> -1 | top   -> 1
-				//e.mouseWheel.delta        left -> -1 | right -> 1
-				break;
 			case sf::Event::KeyPressed:
 				if(e.key.code == sf::Keyboard::Up)
 				{
 					if(selection_index <= 0) selection_index = current_dir.size() - 1;
 					else selection_index--;
+
+					goto selViewCheck;
 				}
 				if(e.key.code == sf::Keyboard::Down)
 				{
 					if(selection_index >= (current_dir.size() - 1)) selection_index = 0;
 					else selection_index++;
+
+					goto selViewCheck;
 				}
 				if(e.key.code == sf::Keyboard::Enter)
 				{
@@ -77,10 +116,30 @@ namespace gui
 				}
 				break;
 		}
+		return;
+		selViewCheck:{}
+		if(((selection_index + 1) * line_height) > (view.getCenter().y + view.getSize().y * 0.5f))
+		{
+			background.move(sf::Vector2f(0.f, ((selection_index + 1) * line_height) - (view.getCenter().y + view.getSize().y * 0.5f)));
+			view.move(sf::Vector2f(0.f, ((selection_index + 1) * line_height) - (view.getCenter().y + view.getSize().y * 0.5f)));
+		}
+		if((selection_index * line_height) < (view.getCenter().y - view.getSize().y * 0.5f))
+		{
+			background.move(sf::Vector2f(0.f, (selection_index * line_height) - (view.getCenter().y - view.getSize().y * 0.5f)));
+			view.move(sf::Vector2f(0.f, (selection_index * line_height) - (view.getCenter().y - view.getSize().y * 0.5f)));
+		}
 	}
 	void Explore::draw()
 	{
 		if(win == nullptr) return;
+
+		win->draw(path_background_rect);
+
+		//draw path
+		text.setFillColor(path_color);
+		text.setString(current_path);
+		text.setPosition(sf::Vector2f(pos.x, pos.y-line_height));
+		win->draw(text);
 
 		sf::View temp_view = win->getView();
 		win->setView(view);
@@ -88,14 +147,8 @@ namespace gui
 		//draw background
 		win->draw(background);
 
-		selection_rect.setPosition(sf::Vector2f(0.f, selection_index * line_height + line_height));
+		selection_rect.setPosition(sf::Vector2f(0.f, selection_index * line_height));
 		win->draw(selection_rect);
-
-		//draw path
-		text.setFillColor(path_color);
-		text.setString(current_path);
-		text.setPosition(sf::Vector2f(0.f, 0));
-		win->draw(text);
 
 		size_t i;
 		//draw directories
@@ -103,11 +156,15 @@ namespace gui
 		icon_rect.setTexture(&folder_image);
 		for(i = 0; i < current_dir.size() && current_dir[i].size == ""; i++)
 		{
-			icon_rect.setPosition(sf::Vector2f(icon_offset * 0.5f, (i + 1) * line_height + icon_offset * 0.5f));
+			icon_rect.setPosition(sf::Vector2f(icon_offset * 0.5f, i * line_height + icon_offset * 0.5f));
 			win->draw(icon_rect);
 
 			text.setString(current_dir[i].name);
-			text.setPosition(sf::Vector2f(line_height + icon_offset * 0.5f, line_height * (i + 1)));
+			text.setPosition(sf::Vector2f(line_height + icon_offset * 0.5f, line_height * i));
+			win->draw(text);
+
+			text.move(sf::Vector2f(max_name_width + offset, 0));
+			text.setString(current_dir[i].last_edit);
 			win->draw(text);
 		}
 
@@ -116,11 +173,20 @@ namespace gui
 		icon_rect.setTexture(&file_image);
 		for(; i < current_dir.size(); i++)
 		{
-			icon_rect.setPosition(sf::Vector2f(icon_offset * 0.5f, (i + 1) * line_height + icon_offset * 0.5f));
+			icon_rect.setPosition(sf::Vector2f(icon_offset * 0.5f, i * line_height + icon_offset * 0.5f));
 			win->draw(icon_rect);
 
 			text.setString(current_dir[i].name);
-			text.setPosition(sf::Vector2f(line_height + icon_offset * 0.5f, line_height * (i + 1)));
+			text.setPosition(sf::Vector2f(line_height + icon_offset * 0.5f, line_height * i));
+			win->draw(text);
+
+			text.move(sf::Vector2f(max_name_width + offset, 0));
+			text.setString(current_dir[i].last_edit);
+			win->draw(text);
+
+			text.move(sf::Vector2f(text.getLocalBounds().width + offset, 0));
+			text.setString(current_dir[i].size);
+			text.move(sf::Vector2f(max_size_width - text.getLocalBounds().width, 0));
 			win->draw(text);
 		}
 
@@ -164,10 +230,15 @@ namespace gui
 	void Explore::resetView()
 	{
 		view.reset(sf::FloatRect(view.getCenter().x - view.getSize().x * 0.5f, view.getCenter().y - view.getSize().y * 0.5f,
-			size.x - (scrollbar_x_visible ? scrollbar_size : 0), size.y - (scrollbar_x_visible ? scrollbar_size : 0)));
+			size.x, size.y));
+		
 		view.setViewport(sf::FloatRect(pos.x / win->getSize().x, pos.y / win->getSize().y,
 			size.x / win->getSize().x, size.y / win->getSize().y));
+		
 		background.setSize(view.getSize());
+		path_background_rect.setPosition(sf::Vector2f(pos.x, pos.y - line_height));
+		path_background_rect.setSize(sf::Vector2f(size.x, line_height));
+
 		checkView();
 		updateMaxSize();
 	}
@@ -190,9 +261,7 @@ namespace gui
 		temp = view.getCenter().y + view.getSize().y * 0.5f - max_height;
 		if(temp > 0.f) view.move({0.f, -temp});
 
-	checkViewX:
-		{
-		}
+		checkViewX:{}
 		/*----General check on width----*/
 		if(max_width < view.getSize().x)
 		{
@@ -208,9 +277,7 @@ namespace gui
 		temp = view.getCenter().x + view.getSize().x * 0.5f - max_width;
 		if(temp > 0.f) view.move({-temp, 0.f});
 
-	checkViewEnd:
-		{
-		}
+		checkViewEnd:{}
 		background.setPosition({view.getCenter().x - view.getSize().x * 0.5f, view.getCenter().y - view.getSize().y * 0.5f});
 	}
 
@@ -219,13 +286,24 @@ namespace gui
 		//height
 		max_height = line_height * current_dir.size();
 		//width
-		max_width = 0.f;
+		max_name_width = 0.f;
+		max_size_width = 0.f;
 		for(Element& e : current_dir)
 		{
 			text.setString(e.name);
-			if(text.getLocalBounds().width > max_width) max_width = text.getLocalBounds().width;
+			if(text.getLocalBounds().width > max_name_width) max_name_width = text.getLocalBounds().width;
+			
+			text.setString(e.size);
+			if(text.getLocalBounds().width > max_size_width) max_size_width = text.getLocalBounds().width;
 		}
-		if(max_width < view.getSize().x) max_width = view.getSize().x;
+		if(max_name_width != 0.f)
+			text.setString(current_dir[current_dir.size()-1].last_edit);
+
+		max_width = max_name_width +
+					max_size_width +
+					text.getLocalBounds().width +
+					offset * (max_size_width != 0.f ? 2 : 1) +
+					icon_rect.getSize().x + icon_offset*2;
 		//seleciton
 		selection_rect.setSize(sf::Vector2f(max_width, line_height));
 	}
@@ -241,11 +319,13 @@ namespace gui
 	void Explore::setPos(sf::Vector2f new_pos)
 	{
 		pos = new_pos;
+		pos.y += line_height;
 		resetView();
 	}
 	void Explore::setSize(sf::Vector2f new_size)
 	{
 		size = new_size;
+		size.y -= line_height;
 		resetView();
 	}
 
@@ -256,8 +336,18 @@ namespace gui
 	void Explore::setTextSize(uint32_t value)
 	{
 		text.setCharacterSize(value);
+
+		pos.y -= line_height;
+		size.y -= line_height;
+
 		line_height = value + 10;
+
+		pos.y += line_height;
+		size.y += line_height;
+
 		icon_rect.setSize(sf::Vector2f(line_height - icon_offset, line_height - icon_offset));
+		selection_rect.setSize(sf::Vector2f(selection_rect.getSize().x, line_height));
+		resetView();
 	}
 
 	void Explore::setCurrentPath(std::wstring new_path)
@@ -318,31 +408,29 @@ namespace gui
 			temp_str = dir.path().wstring();
 			temp_time = std::format("{}", std::filesystem::last_write_time(dir));
 
-			if(std::filesystem::exists(dir.path())) {
-				try
+			try
+			{
+				std::filesystem::file_status file_status = std::filesystem::status(dir.path());
+				if(std::filesystem::is_directory(file_status))
 				{
-					std::filesystem::file_status file_status = std::filesystem::status(dir.path());
-					if(std::filesystem::is_directory(file_status))
-					{
-						res.insert(res.begin(), Element(
-							temp_str.substr(temp_str.find_last_of(L"\\/") + 1),
-							temp_time.substr(0, temp_time.rfind('.')),
-							""
-						));
-					}
-					else
-					{
-						res.push_back(Element(
-							temp_str.substr(temp_str.find_last_of(L"\\/") + 1),
-							temp_time.substr(0, temp_time.rfind('.')),
-							toString(dir.file_size())
-						));
-					}
+					res.insert(res.begin(), Element(
+						temp_str.substr(temp_str.find_last_of(L"\\/") + 1),
+						temp_time.substr(0, temp_time.rfind('.')),
+						""
+					));
 				}
-				catch(const std::filesystem::filesystem_error& ex)
+				else
 				{
-					//error
+					res.push_back(Element(
+						temp_str.substr(temp_str.find_last_of(L"\\/") + 1),
+						temp_time.substr(0, temp_time.rfind('.')),
+						formatSize(toString(dir.file_size() >> 10))
+					));
 				}
+			}
+			catch(const std::filesystem::filesystem_error& ex)
+			{
+				//error
 			}
 		}
 		return res;
@@ -369,19 +457,5 @@ namespace gui
 	std::vector<std::wstring> getDirsInPath(std::wstring path)
 	{
 		return getElementsInPath(path, true);
-	}
-
-	std::string toString(int n)
-	{
-		int i = 0;
-		std::string res("");
-
-		while(n > 0)
-		{
-			res = res + (char)(n % 10);
-			n /= 10;
-		}
-		if(res == "") return "0";
-		return res;
 	}
 }

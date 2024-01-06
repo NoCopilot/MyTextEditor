@@ -1,4 +1,5 @@
 #include "TextBox.hpp"
+#include <iostream>
 
 std::vector<sf::String> split(sf::String str, char del)
 {
@@ -58,6 +59,8 @@ namespace gui
 		cursor.setSize({2, line_height});
 		last_input = 0;
 		text_changed = false;
+		first_line_modified = 0;
+		last_line_modified = 0;
 
 		intervals.clear();
 
@@ -197,6 +200,8 @@ namespace gui
 						if(ctrl_pressed) v_text[ty].erase(tx, nextSymbol(1, tx, ty).x - tx);
 						else v_text[ty].erase(tx);
 					}
+					first_line_modified = ty;
+					last_line_modified = ty+2;
 				}
 				goto listenEnd;
 			}
@@ -265,8 +270,8 @@ namespace gui
 					break;
 			}
 			return;
-
-		arrowSel:
+			//keyboard text selection 
+			arrowSel:
 			{
 				if(shift_pressed)
 				{
@@ -289,33 +294,38 @@ namespace gui
 			last_input = e.text.unicode;
 			switch(e.text.unicode)
 			{
-				case COPY:
+				case _COPY:
+					if(selection_lines.size() == 0) return;
 					sf::Clipboard::setString(getTextAsString(getTextSelected()));
 					return;
-					break;
-				case CUT:
+				case _CUT:
+					if(selection_lines.size() == 0) return;
 					sf::Clipboard::setString(getTextAsString(getTextSelected()));
 					deleteTextSelected();
 					break;
-				case PASTE:
+				case _PASTE:
 					deleteTextSelected();
 					writeText(sf::Clipboard::getString());
-					break;
-				case ENTER:
+					return;
+				case _ENTER:
 					deleteTextSelected();
 					if(!multiple_lines) break;
 					v_text.insert(v_text.begin() + ty + 1, v_text[ty].substring(tx));
 					v_text[ty] = v_text[ty].substring(0, tx);
+					
+					first_line_modified = ty;
+					last_line_modified = ty + 2;
 					//set cursor pos
 					ty++;
 					tx = 0;
 					break;
-				case DELETE:
-				case CDELETE:
+				case _DELETE:
+				case _CDELETE:
 					if(deleteTextSelected()) break;
 					if(tx == 0)
 					{
 						if(ty == 0) break;
+
 						tx = v_text[ty - 1].getSize();
 						v_text[ty - 1] += v_text[ty];
 						v_text.erase(v_text.begin() + ty);
@@ -328,22 +338,24 @@ namespace gui
 							sf::Vector2<std::size_t> temp = nextSymbol(0, tx, ty);
 							v_text[ty].erase(temp.x, tx - temp.x);
 							tx = temp.x;
+							
 							break;
 						}
 						v_text[ty].erase(--tx, 1);
 					}
+					first_line_modified = ty;
+					last_line_modified = ty + 2;
 					break;
 				default:
-					if(e.text.unicode < 32 && e.text.unicode != TAB) return;
+					if(e.text.unicode < 32 && e.text.unicode != _TAB) return;
 					deleteTextSelected();
 					v_text[ty].insert(tx++, e.text.unicode);
+					last_line_modified++;
 			}
 			goto listenEnd;
 		}
 		return;
-	listenEnd:
-		{
-		}
+		listenEnd:{}
 		updateView();
 	}
 
@@ -384,6 +396,10 @@ namespace gui
 
 		sf::String s = v_text[py].substring(px);
 		std::vector<sf::String> t = split(str, '\n');
+		
+		first_line_modified = py;
+		last_line_modified = py + t.size();
+
 		if(!multiple_lines)
 		{
 			v_text[0] = v_text[0].substring(0, px) + t[0] + v_text[0].substring(px);
@@ -393,6 +409,8 @@ namespace gui
 		for(std::size_t i = 1; i < t.size(); i++)
 			v_text.insert(v_text.begin() + py + i, t[i]);
 		v_text[py + t.size() - 1] += s;
+
+		updateView();
 	}
 
 	void TextBox::deleteText(std::size_t px, std::size_t py, std::size_t n)
@@ -432,6 +450,7 @@ namespace gui
 	{
 		v_text.clear();
 		v_text.push_back("");
+		max_width = 0.f;
 		setCursorPos({0, 0});
 	}
 
@@ -543,9 +562,8 @@ namespace gui
 		temp = view.getCenter().y + view.getSize().y * 0.5f - line_height * v_text.size();
 		if(temp > 0.f) view.move({0.f, -temp});
 
-	checkViewX:
-		{
-		}
+		checkViewX:{}
+		
 		/*----General check on width----*/
 		if(max_width < view.getSize().x)
 		{
@@ -561,9 +579,8 @@ namespace gui
 		temp = view.getCenter().x + view.getSize().x * 0.5f - max_width;
 		if(temp > 0.f) view.move({-temp, 0.f});
 
-	checkViewEnd:
-		{
-		}
+		checkViewEnd:{}
+		
 		background.setPosition({view.getCenter().x - view.getSize().x * 0.5f, view.getCenter().y - view.getSize().y * 0.5f});
 	}
 
@@ -610,9 +627,36 @@ namespace gui
 
 	void TextBox::updateMaxWidth()
 	{
-		max_width = 0.f;
+		if(max_width_line >= first_line_modified && max_width_line < last_line_modified)
+		{
+			max_width = 0.f;
+			first_line_modified = 0;
+			last_line_modified = v_text.size();
+		}
+
+		std::vector<std::thread*> threads;
+		std::vector<size_t> values;
+		
+		for(std::size_t i = first_line_modified; i < last_line_modified; i += 2000)
+		{
+			values.push_back(0);
+
+			threads.push_back(new std::thread(
+				&TextBox::checkIntervalWidth,
+				this,
+				i,
+				(i+2000 > v_text.size() ? v_text.size() : i+2000),
+				std::ref(values[values.size()-1])
+			));
+		}
+
 		float temp;
-		for(std::size_t i = 0; i < v_text.size(); i++)
+		for(std::thread* ti : threads)
+		{
+			ti->join();
+			delete ti;
+		}
+		for(size_t i : values)
 		{
 			temp = getTextWidth(0, i, v_text[i].getSize());
 			if(temp > max_width)
@@ -620,6 +664,17 @@ namespace gui
 				max_width = temp;
 				max_width_line = i;
 			}
+		}
+
+		first_line_modified = 0;
+		last_line_modified = 0;
+	}
+	void TextBox::checkIntervalWidth(size_t begin, size_t end, size_t& v)
+	{
+		for(; begin < end; begin++)
+		{
+			if(v_text[begin].getSize() > v)
+				v = begin;
 		}
 	}
 
@@ -694,6 +749,9 @@ namespace gui
 		if(selection_lines.size() == 0) return false;
 		std::size_t i = 0;
 
+		first_line_modified = selection_begin.y;
+		last_line_modified = selection_end.y;
+
 		//single line
 		if(selection_lines.size() == 1)
 		{
@@ -705,9 +763,8 @@ namespace gui
 		for(i = 1; i < (selection_lines.size() - 1); i++) v_text.erase(v_text.begin() + selection_lines[0].y + 1);	//in between
 		v_text[selection_lines[0].y] += v_text[selection_lines[0].y + 1].substring(selection_lines[i].z);
 		v_text.erase(v_text.begin() + selection_lines[0].y + 1);
-	delTSEnd:
-		{
-		}
+		
+		delTSEnd:{}
 
 		tx = selection_begin.x;
 		ty = selection_begin.y;

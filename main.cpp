@@ -7,9 +7,9 @@
 
 #ifdef _WIN32
 #include <windows.h>
-bool isAbsolutePath(std::wstring path)
+bool isAbsolutePath(sf::String path)
 {
-	if(path.size() < 3) return false;
+	if(path.getSize() < 3) return false;
 	if(	path[0] == 'C' && path[1] == ':' && (path[2] == '/' || path[2] == '\\')) return true;
 	return false;
 }
@@ -23,9 +23,9 @@ std::string getExePath()
 #include <libgen.h>
 #include <unistd.h>
 #include <linux/limits.h>
-bool isAbsolutePath(std::wstring path)
+bool isAbsolutePath(sf::String path)
 {
-	if(path.size() < 1) return false;
+	if(path.getSize() < 1) return false;
 	if(path[0] == '/') return true;
 	return false;
 }
@@ -41,15 +41,7 @@ std::string getExePath()
 }
 #endif
 
-std::wstring adjustSlash(std::wstring path)
-{
-	std::wstring res = path;
-	for(auto& ch : res)
-		if(ch == '\\') ch = '/';
-	return res;
-}
-
-std::wstring normalizePath(std::wstring path)
+sf::String normalizePath(sf::String path)
 {
 	auto v = split(path, '/');
 	std::wstring res = v[0] + "/";
@@ -62,12 +54,23 @@ std::wstring normalizePath(std::wstring path)
 			res = res.substr(0, res.rfind('/')+1);
 			continue;
 		}
-		if(v[i] == ".") continue;
+		if(v[i] == "." || v[i] == "") continue;
 		res += v[i] + "/";
 	}
 	res.erase(res.size()-1);
 
 	return res;
+}
+
+int rfind(sf::String str, sf::Uint32 ch)
+{
+	if(str.getSize() == 0) return -1;
+	for(size_t i = str.getSize()-1; i > 0; i--)
+	{
+		if(str[i] == ch) return i;
+	}
+	if(str[0] != ch) return -1;
+	return 0;
 }
 
 //not my code
@@ -181,20 +184,22 @@ void addTab(std::vector<Tab>&, gui::TextBox*, sf::String, size_t&);
 
 int main(int argc, char* argv[])
 {
-	sf::String current_path = std::filesystem::current_path().wstring(), exe_path = getExePath();
+	sf::String current_path = adjustSlash(std::filesystem::current_path().wstring()), exe_path = adjustSlash(getExePath());
 	sf::String visual_path = current_path;
 
 	sf::RenderWindow win(sf::VideoMode(800, 500), "SpicyCode");
 	sf::View view;
 	sf::Event e;
 	
-	loadWindowIcon(win, exe_path + "/icon.png");
+	loadWindowIcon(win, exe_path + "/icons/window/icon.png");
 	font_path = exe_path + "/font/font.otf";
 
 	sf::Font font;
 	font.loadFromFile(exe_path + "/font/font.otf");
 
+	bool explore_mode = true;
 	bool edit_mode = false;
+
 	gui::TextBox* base_textbox = new gui::TextBox;
 	base_textbox->init(win);
 	base_textbox->setSize((sf::Vector2f)win.getSize());
@@ -208,12 +213,44 @@ int main(int argc, char* argv[])
 	std::vector<sf::String> file_paths;
 	std::size_t current_file = 0;
 
+	sf::String temp;
 	if(argc > 1)
 	{
 		
 		for(int i = 1; i < argc; i++)
 		{
-			
+			if(!isAbsolutePath(argv[i])) temp = normalizePath(current_path + "/" + adjustSlash(argv[i]));
+			std::filesystem::file_status file_status = std::filesystem::status(temp.toWideString());
+			if(!std::filesystem::exists(file_status))
+			{
+				sf::String temp1 = temp.substring(rfind(temp, '/')+1);
+				temp = temp.substring(0, rfind(temp, '/'));
+				if(!std::filesystem::exists(temp.toWideString())) continue;
+				if(std::filesystem::is_directory(std::filesystem::status(temp.toWideString())))
+				{
+					visual_path = temp;
+					temp += "/" + temp1;
+					fileWrite(temp, L"");
+					addTab(tabs, base_textbox, temp, current_file);
+
+					edit_mode = true;
+					explore_mode = false;
+				}
+				continue;
+			}
+			if(std::filesystem::is_directory(file_status))
+			{
+				visual_path = temp;
+				continue;
+			}
+			else
+			{
+				addTab(tabs, base_textbox, temp, current_file);
+				visual_path = temp.substring(0, rfind(temp, '/'));
+
+				edit_mode = true;
+				explore_mode = false;
+			}
 		}
 	}
 	if(tabs.size() == 0)
@@ -221,15 +258,16 @@ int main(int argc, char* argv[])
 		addTab(tabs, base_textbox, "", current_file);
 	}
 
-	bool explore_mode = true;
 	gui::Explore explore;
 	explore.init(win);
-	explore.setCurrentPath(visual_path);
 	explore.setFont(font);
+	explore.setCurrentPath(visual_path);
+	explore.setPos(sf::Vector2f(0.f, 0.f));
 	explore.setSize((sf::Vector2f)win.getSize());
 	explore.setFileImage(exe_path + "/icons/explorer/file.png");
 	explore.setFolderImage(exe_path + "/icons/explorer/folder.png");
-	sf::String path_to_open;
+	explore.setTextSize(20);
+	explore.setSelectionColor(sf::Color(25, 34, 71));
 
 	win.setFramerateLimit(120);
 	while(win.isOpen())
@@ -240,10 +278,10 @@ int main(int argc, char* argv[])
 			if(explore_mode)
 			{
 				explore.listen(e);
-				path_to_open = explore.getSelectedFile();
-				if(path_to_open != L"")
+				temp = explore.getSelectedFile();
+				if(temp != L"")
 				{
-					addTab(tabs, base_textbox, adjustSlash(path_to_open), current_file);
+					addTab(tabs, base_textbox, adjustSlash(temp), current_file);
 
 					explore.clearSelectedFile();
 					edit_mode = true;
@@ -267,12 +305,38 @@ int main(int argc, char* argv[])
 							explore_mode = false;
 							edit_mode = true;
 						}
+						break;
 					}
-					if(e.key.code == sf::Keyboard::Tab)
+					if(sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
 					{
-						if(sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
+						if(edit_mode)
 						{
-							//switch tabs
+							if(e.key.code == sf::Keyboard::Tab)
+							{
+								if(current_file == (tabs.size() - 1)) current_file = 0;
+								else current_file++;
+								break;
+							}
+							if(e.key.code == sf::Keyboard::W)
+							{
+								if(!sf::Keyboard::isKeyPressed(sf::Keyboard::LShift))
+								{
+									if(tabs[current_file].utf8_encode)
+										fileWrite(tabs[current_file].file_path, tabs[current_file].textbox.getTextAsString().toAnsiString());
+									else
+										fileWrite(tabs[current_file].file_path, tabs[current_file].textbox.getTextAsString().toWideString());
+								}
+								if(tabs.size() > 1)
+								{
+									tabs.erase(tabs.begin() + current_file);
+									if(current_file != 0) current_file--;
+								}
+								else
+								{
+									tabs[current_file].textbox.clearText();
+									tabs[current_file].file_path = "";
+								}
+							}
 						}
 					}
 					break;

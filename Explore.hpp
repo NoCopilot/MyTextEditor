@@ -1,11 +1,14 @@
 #ifndef EXPLORE_HPP
 #define EXPLORE_HPP
 
-#include "Scrollbar.hpp"
+#include "SFML/Graphics.hpp"
 #include <filesystem>
 #include <string>
 #include <format>
 #include <vector>
+
+sf::String adjustSlash(sf::String);
+sf::String toString(int);
 
 namespace gui
 {
@@ -20,7 +23,6 @@ namespace gui
 	std::vector<std::wstring> getElementsInPath(std::wstring&, bool);
 	std::vector<std::wstring> getFilesInPath(std::wstring);
 	std::vector<std::wstring> getDirsInPath(std::wstring);
-	std::string toString(int);
 
 	class Explore
 	{
@@ -72,13 +74,11 @@ namespace gui
 		sf::Vector2f pos, size;
 		sf::RectangleShape background;
 
-		float max_width, max_height;
-		Scrollbar scrollbar_x, scrollbar_y;
-		float scrollbar_size;
-		bool scrollbar_x_visible, scrollbar_y_visible;
+		float max_name_width, max_size_width, max_width, max_height, offset = 30.f;
 
 		std::wstring current_path;
 		std::vector<Element> current_dir;
+		sf::RectangleShape path_background_rect;
 
 		sf::Texture folder_image, file_image;
 		sf::RectangleShape icon_rect;

@@ -3,14 +3,15 @@
 
 #include "Scrollbar.hpp"
 #include <vector>
+#include <thread>
 
-#define COPY 3
-#define CUT 24
-#define PASTE 22
-#define ENTER 13
-#define DELETE 8
-#define CDELETE 127
-#define TAB 9
+#define _COPY 3
+#define _CUT 24
+#define _PASTE 22
+#define _ENTER 13
+#define _DELETE 8
+#define _CDELETE 127
+#define _TAB 9
 
 std::vector<sf::String> split(sf::String, char);
 
@@ -107,6 +108,7 @@ namespace gui
 		bool locked, editable, focus, lost_focus, multiple_lines, text_changed, ctrl_pressed, shift_pressed;
 		float max_width, line_height;
 		std::size_t max_width_line;
+		size_t first_line_modified, last_line_modified;
 
 		Scrollbar scrollbar_x, scrollbar_y;
 		float scrollbar_size;
@@ -150,6 +152,7 @@ namespace gui
 		float getTextWidth(std::size_t, std::size_t, std::size_t);
 		sf::Vector2<std::size_t> getPosInText(sf::Vector2i);
 		void updateMaxWidth();
+		void checkIntervalWidth(size_t, size_t, size_t&);
 		sf::Vector2<std::size_t> nextSymbol(bool, std::size_t, std::size_t);
 		sf::Vector2i getMousePosInView();
 		/*--------------------------------------------------------------------------------------------*/
