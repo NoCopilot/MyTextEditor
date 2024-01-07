@@ -213,7 +213,7 @@ namespace gui
 	{
 		if(std::filesystem::exists(current_path + path))
 		{
-			current_path += path;
+			current_path += path + L"/";
 			updateElements();
 		}
 	}
@@ -364,6 +364,7 @@ namespace gui
 
 	void Explore::setCurrentPath(std::wstring new_path)
 	{
+		if(new_path[new_path.size()-1] != L'/') new_path += L'/';
 		current_path = new_path;
 		updateElements();
 	}

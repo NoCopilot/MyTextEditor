@@ -254,6 +254,7 @@ int main(int argc, char* argv[])
 	command_line.setPos(sf::Vector2f(0.f, win.getSize().y - command_line_height));
 	command_line.setFocus(false);
 	command_line.setMultiLines(false);
+	command_line.setBackgroundColor(command_line.getBackgroundColor() + sf::Color(0, 0, 0, 20));
 
 	std::vector<Tab> tabs;
 	std::vector<sf::String> file_paths;
@@ -316,7 +317,7 @@ int main(int argc, char* argv[])
 	explore.setSelectionColor(sf::Color(25, 34, 71));
 	explore.setBackgroundColor(sf::Color(141, 169, 196, 35));
 
-	win.setFramerateLimit(120);
+	win.setFramerateLimit(60);
 	while(win.isOpen())
 	{
 		while(win.pollEvent(e))
@@ -471,6 +472,8 @@ int main(int argc, char* argv[])
 
 					base_textbox->setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height));
 					for(Tab& tab_i : tabs) tab_i.textbox.setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height));
+					command_line.setPos(sf::Vector2f(0.f, win.getSize().y - command_line_height));
+					command_line.setSize(sf::Vector2f((float)win.getSize().x, command_line_height));
 					explore.setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height));
 
 					break;
