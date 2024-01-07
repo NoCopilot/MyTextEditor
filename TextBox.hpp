@@ -13,7 +13,7 @@
 #define _CDELETE 127
 #define _TAB 9
 
-std::vector<sf::String> split(sf::String, char);
+std::vector<sf::String> split(sf::String, sf::String);
 
 namespace gui
 {
@@ -55,6 +55,8 @@ namespace gui
 		void setPos(sf::Vector2f);
 		void setFocus(bool);
 		void setScrollbarSize(float);
+		void setScrollbarXVisible(bool);
+		void setScrollbarYVisible(bool);
 
 		void setOutline(int);
 		void setOutlineColor(sf::Color);
@@ -112,6 +114,7 @@ namespace gui
 
 		Scrollbar scrollbar_x, scrollbar_y;
 		float scrollbar_size;
+		bool scrollbar_x_visible, scrollbar_y_visible;
 
 		sf::Vector2<std::size_t> selection_begin, selection_end;
 		sf::RectangleShape selection_rect;
@@ -146,7 +149,7 @@ namespace gui
 		void moveViewUp();
 		void moveViewDown();
 		void checkView();
-		void resetView(sf::Vector2f, sf::Vector2f);
+		void resetView();
 
 		sf::String getTextAsString(std::vector<sf::String>);
 		float getTextWidth(std::size_t, std::size_t, std::size_t);

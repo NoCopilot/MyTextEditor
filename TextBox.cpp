@@ -1,18 +1,24 @@
 #include "TextBox.hpp"
-#include <iostream>
 
-std::vector<sf::String> split(sf::String str, char del)
+std::vector<sf::String> split(sf::String str, sf::String del)
 {
 	std::vector<sf::String> res;
 	sf::String s = "";
+	bool found;
 	for(std::size_t i = 0; i < str.getSize(); i++)
 	{
-		if((char)str[i] == del) {
-			res.push_back(s);
-			s = "";
-			continue;
+		found = false;
+		for(sf::Uint32 ch : del)
+		{
+			if(str[i] == ch)
+			{
+				res.push_back(s);
+				s = "";
+				found = true;
+				break;
+			}
 		}
-		s += str[i];
+		if(!found) s += str[i];
 	}
 	res.push_back(s);
 	return res;
@@ -25,11 +31,14 @@ namespace gui
 		win = &window;
 
 		scrollbar_size = 10;
+		scrollbar_x_visible = true;
+		scrollbar_y_visible = true;
 
 		scrollbar_x.setColor(sf::Color(200, 200, 200), sf::Color(100, 100, 100));
 		scrollbar_y.setColor(sf::Color(200, 200, 200), sf::Color(100, 100, 100));
 
-		resetView({0, 0}, {200 - scrollbar_size, 200 - scrollbar_size});
+		pos = {0.f, 0.f};
+		setSize({200.f, 200.f});
 
 		background.setFillColor(sf::Color::White);
 		focus = false;
@@ -83,7 +92,7 @@ namespace gui
 		/////////////////////////////////////////////
 		if(e.type == sf::Event::Resized)
 		{
-			resetView(pos, {size.x + scrollbar_size, size.y + scrollbar_size});
+			resetView();
 			return;
 		}
 
@@ -376,12 +385,12 @@ namespace gui
 		if(multiple_lines) multipleLinesRender();
 		else singleLineRender();
 
-		win->draw(cursor);
+		if(focus) win->draw(cursor);
 
 		win->setView(temp_view);
 
-		scrollbar_x.draw(win);
-		if(multiple_lines) scrollbar_y.draw(win);
+		if(scrollbar_x_visible)scrollbar_x.draw(win);
+		if(scrollbar_y_visible && multiple_lines) scrollbar_y.draw(win);
 	}
 
 	void TextBox::writeText(sf::String str)
@@ -484,7 +493,14 @@ namespace gui
 	//draw single line
 	void TextBox::singleLineRender()
 	{
-
+		float temp = 0.f;
+		for(std::size_t i = 0; i < v_text[0].getSize(); i++)
+		{
+			text.setString(v_text[0][i]);
+			text.setPosition({temp, 0.f});
+			win->draw(text);
+			temp += text.getLocalBounds().width + text.getLocalBounds().left;
+		}
 	}
 	//draw text box
 	void TextBox::multipleLinesRender()
@@ -521,11 +537,8 @@ namespace gui
 		}
 	}
 
-	void TextBox::resetView(sf::Vector2f vp, sf::Vector2f vs)
+	void TextBox::resetView()
 	{
-		pos = vp;
-		size = {vs.x - scrollbar_size, vs.y - scrollbar_size};
-
 		sf::Vector2f temp = {scrollbar_x.getScrollPos(), scrollbar_y.getScrollPos()};
 		if(temp.x != temp.x) temp.x = 0;
 		if(temp.y != temp.y) temp.y = 0;
@@ -861,19 +874,21 @@ namespace gui
 	void TextBox::setWindow(sf::RenderWindow& window)
 	{
 		win = &window;
-		resetView(pos, size);
+		resetView();
 	}
 
 	void TextBox::setSize(sf::Vector2f psize)
 	{
 		if(win == nullptr) return;
-		resetView(pos, psize);
+		size = psize - sf::Vector2f((scrollbar_x_visible ? scrollbar_size : 0.f), (scrollbar_y_visible ? scrollbar_size : 0.f));
+		resetView();
 	}
 
 	void TextBox::setPos(sf::Vector2f ppos)
 	{
 		if(win == nullptr) return;
-		resetView(ppos, size);
+		pos = ppos;
+		resetView();
 	}
 
 	void TextBox::setFocus(bool pfocus)
@@ -884,6 +899,20 @@ namespace gui
 	void TextBox::setScrollbarSize(float psize)
 	{
 		scrollbar_size = psize;
+	}
+
+	void TextBox::setScrollbarXVisible(bool _bool)
+	{
+		if(!_bool && scrollbar_x_visible)
+			setSize(size - sf::Vector2f(0.f, scrollbar_size));
+		scrollbar_x_visible = _bool;
+	}
+	
+	void TextBox::setScrollbarYVisible(bool _bool)
+	{
+		if(!_bool && scrollbar_y_visible)
+			setSize(size - sf::Vector2f(scrollbar_size, 0.f));
+		scrollbar_y_visible = _bool;
 	}
 
 	void TextBox::setOutline(int n)

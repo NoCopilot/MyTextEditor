@@ -1,5 +1,4 @@
 #include "Explore.hpp"
-#include <iostream>
 
 sf::String adjustSlash(sf::String path)
 {
@@ -48,8 +47,8 @@ namespace gui
 		win = &window;
 		pos = sf::Vector2f(0.f, 0.f);
 		size = sf::Vector2f(300.f, 300.f);
-		background.setFillColor(sf::Color(30, 30, 30));
-		path_background_rect.setFillColor(sf::Color(30, 30, 30));
+		background.setFillColor(sf::Color::Black);
+		path_background_rect.setFillColor(sf::Color::Black);
 		resetView();
 
 		offset = 30.f;
@@ -205,16 +204,16 @@ namespace gui
 	void Explore::parentDirectory()
 	{
 		selection_index = 0;
-		int i = current_path.find_last_of(L"\\/");
+		int i = current_path.rfind(L"/", current_path.size()-2);
 		if(i == -1) return;
-		current_path = current_path.substr(0, current_path.find_last_of(L"\\/"));
+		current_path = current_path.substr(0, i+1);
 		updateElements();
 	}
 	void Explore::goTo(std::wstring path)
 	{
-		if(std::filesystem::exists(current_path + L"/" + path))
+		if(std::filesystem::exists(current_path + path))
 		{
-			current_path += L"/" + path;
+			current_path += path;
 			updateElements();
 		}
 	}
@@ -222,9 +221,18 @@ namespace gui
 	{
 		selection_index = 0;
 		view.setCenter(sf::Vector2f(view.getSize().x * 0.5f, view.getSize().y * 0.5f));
+		background.setPosition(sf::Vector2f(0.f, 0.f));
 		current_dir = getElementsInPath(current_path);
 		current_dir.insert(current_dir.begin(), Element("..", "", ""));
 		updateMaxSize();
+	}
+
+	void Explore::reflash()
+	{
+		current_dir = getElementsInPath(current_path);
+		current_dir.insert(current_dir.begin(), Element("..", "", ""));
+		updateMaxSize();
+		if(selection_index >= current_dir.size()) selection_index = current_dir.size()-1;
 	}
 
 	void Explore::resetView()
@@ -328,7 +336,11 @@ namespace gui
 		size.y -= line_height;
 		resetView();
 	}
-
+	void Explore::setBackgroundColor(sf::Color _color)
+	{
+		background.setFillColor(_color);
+		path_background_rect.setFillColor(_color);
+	}
 	void Explore::setFont(sf::Font& font)
 	{
 		text.setFont(font);
@@ -403,6 +415,7 @@ namespace gui
 		std::wstring temp_str;
 		std::string temp_time;
 
+		size_t dir_counter = 0;
 		for(auto const& dir : std::filesystem::directory_iterator{path})
 		{
 			temp_str = dir.path().wstring();
@@ -413,7 +426,7 @@ namespace gui
 				std::filesystem::file_status file_status = std::filesystem::status(dir.path());
 				if(std::filesystem::is_directory(file_status))
 				{
-					res.insert(res.begin(), Element(
+					res.insert(res.begin() + dir_counter++, Element(
 						temp_str.substr(temp_str.find_last_of(L"\\/") + 1),
 						temp_time.substr(0, temp_time.rfind('.')),
 						""
@@ -444,7 +457,7 @@ namespace gui
 			if(std::filesystem::is_directory(dir.path()) == fod)
 			{
 				temp_str = dir.path().wstring();
-				res.push_back(temp_str.substr(temp_str.find_last_of(L"\\/") + 1));
+				res.push_back(temp_str.substr(temp_str.rfind(L"/") + 1));
 			}
 		return res;
 	}

@@ -36,6 +36,7 @@ namespace gui
 		void draw();
 
 		void clearSelectedFile();
+		void reflash();
 
 		////////////////////////////////////
 		//              SETS              //
@@ -44,6 +45,7 @@ namespace gui
 		void setWindow(sf::RenderWindow&);
 		void setPos(sf::Vector2f);
 		void setSize(sf::Vector2f);
+		void setBackgroundColor(sf::Color);
 
 		void setFont(sf::Font&);
 		void setTextSize(uint32_t);
