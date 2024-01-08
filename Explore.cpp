@@ -1,4 +1,5 @@
 #include "Explore.hpp"
+#include <iostream>
 
 sf::String adjustSlash(sf::String path)
 {
@@ -97,7 +98,7 @@ namespace gui
 						goTo(current_dir[selection_index].name);
 						return;
 					}
-					selected_file = current_path + L"/" + current_dir[selection_index].name;
+					selected_file = current_path + current_dir[selection_index].name;
 				}
 				if(e.key.code == sf::Keyboard::N)
 				{
@@ -350,12 +351,12 @@ namespace gui
 		text.setCharacterSize(value);
 
 		pos.y -= line_height;
-		size.y -= line_height;
+		size.y += line_height;
 
 		line_height = value + 10;
 
 		pos.y += line_height;
-		size.y += line_height;
+		size.y -= line_height;
 
 		icon_rect.setSize(sf::Vector2f(line_height - icon_offset, line_height - icon_offset));
 		selection_rect.setSize(sf::Vector2f(selection_rect.getSize().x, line_height));
@@ -388,7 +389,7 @@ namespace gui
 
 	std::wstring Explore::getCurrentPath()
 	{
-		return current_path;
+		return current_path.substr(0, current_path.size()-1);
 	}
 
 	sf::Vector2f Explore::getPos()
@@ -424,8 +425,7 @@ namespace gui
 
 			try
 			{
-				std::filesystem::file_status file_status = std::filesystem::status(dir.path());
-				if(std::filesystem::is_directory(file_status))
+				if(std::filesystem::is_directory(std::filesystem::status(dir.path())))
 				{
 					res.insert(res.begin() + dir_counter++, Element(
 						temp_str.substr(temp_str.find_last_of(L"\\/") + 1),

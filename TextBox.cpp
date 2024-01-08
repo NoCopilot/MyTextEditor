@@ -41,6 +41,9 @@ namespace gui
 		setSize({200.f, 200.f});
 
 		background.setFillColor(sf::Color::White);
+		line_view_background.setFillColor(sf::Color::White);
+		line_view_background.setOutlineColor(sf::Color::White);
+		line_view_background.setOutlineThickness(-2);
 		focus = false;
 		locked = false;
 		editable = true;
@@ -535,6 +538,16 @@ namespace gui
 				temp += text.getLocalBounds().width + text.getLocalBounds().left;
 			}
 		}
+		if(!show_line_number) return;
+		win->setView(line_number_view);
+		win->draw(line_view_background);
+		for(i = (view.getCenter().y - view.getSize().y / 2) / line_height; i < n && i < v_text.size(); ++i)
+		{
+			text.setString(toString(i + 1));
+			text.setPosition(line_number_width - text.getLocalBounds().width - 12.f, line_height * i);
+			win->draw(text);
+		}
+		win->setView(view);
 	}
 
 	void TextBox::resetView()
@@ -542,11 +555,23 @@ namespace gui
 		sf::Vector2f temp = {scrollbar_x.getScrollPos(), scrollbar_y.getScrollPos()};
 		if(temp.x != temp.x) temp.x = 0;
 		if(temp.y != temp.y) temp.y = 0;
-
+		
 		view.reset({temp.x * max_width, temp.y * line_height * v_text.size(), size.x, size.y});
 		view.setViewport({pos.x / win->getSize().x, pos.y / win->getSize().y, size.x / win->getSize().x, size.y / win->getSize().y});
 
 		checkView();
+		if(show_line_number)
+		{
+			line_number_view.reset({0.f, view.getCenter().y - view.getSize().y*0.5f, line_number_width, view.getSize().y});
+			line_number_view.setViewport({
+				(pos.x - line_number_width) / win->getSize().x,
+				pos.y / win->getSize().y,
+				line_number_width / win->getSize().x,
+				size.y / win->getSize().y
+			});
+			line_view_background.setSize(line_number_view.getSize() + sf::Vector2f(0.f, 4.f));
+			line_view_background.setPosition(line_number_view.getCenter() - line_number_view.getSize()*0.5f - sf::Vector2f(2.f, 2.f));
+		}
 
 		background.setSize(size);
 		background.setPosition({view.getCenter().x - view.getSize().x * 0.5f, view.getCenter().y - view.getSize().y * 0.5f});
@@ -595,6 +620,8 @@ namespace gui
 		checkViewEnd:{}
 		
 		background.setPosition({view.getCenter().x - view.getSize().x * 0.5f, view.getCenter().y - view.getSize().y * 0.5f});
+		line_number_view.move({0.f, view.getCenter().y - line_number_view.getCenter().y});
+		line_view_background.move({0.f, view.getCenter().y - view.getSize().y * 0.5f - line_view_background.getPosition().y - 2.f});
 	}
 
 	void TextBox::updateView()
@@ -607,12 +634,19 @@ namespace gui
 		{
 			view.setCenter({view.getCenter().x, temp + view.getSize().y * 0.5f});
 			background.setPosition({view.getCenter().x - view.getSize().x * 0.5f, view.getCenter().y - view.getSize().y * 0.5f});
+
+			line_number_view.move({0.f, view.getCenter().y - line_number_view.getCenter().y});
+			line_view_background.setPosition({-2.f, line_number_view.getCenter().y - line_number_view.getSize().y*0.5f - 2.f});
 		}
 		//checking when cursor is down the view
 		if(temp > (view.getCenter().y + view.getSize().y * 0.5f - line_height))
 		{
 			view.setCenter({view.getCenter().x, temp - view.getSize().y * 0.5f + line_height});
 			background.setPosition({view.getCenter().x - view.getSize().x * 0.5f, view.getCenter().y - view.getSize().y * 0.5f});
+			
+			line_number_view.move({0.f, view.getCenter().y - line_number_view.getCenter().y});
+			line_number_view.move({0.f, view.getCenter().y - line_number_view.getCenter().y});
+			line_view_background.setPosition({-2.f, line_number_view.getCenter().y - line_number_view.getSize().y * 0.5f - 2.f});
 		}
 		//check whenever resize
 		if((v_text.size() * line_height) > view.getSize().y && temp >= (v_text.size() * line_height - view.getSize().y) && temp < (v_text.size() * line_height))
@@ -695,6 +729,9 @@ namespace gui
 	{
 		view.move({0, -line_height});
 		background.move({0, -line_height});
+
+		line_number_view.move({0, -line_height});
+		line_view_background.move({0, -line_height});
 		checkView();
 	}
 
@@ -702,6 +739,9 @@ namespace gui
 	{
 		view.move({0, line_height});
 		background.move({0, line_height});
+
+		line_number_view.move({0, line_height});
+		line_view_background.move({0, line_height});
 		checkView();
 	}
 
@@ -868,6 +908,20 @@ namespace gui
 		return {};
 	}
 
+	sf::String TextBox::toString(int n)
+	{
+		int i = 0;
+		sf::String res("");
+
+		while(n > 0)
+		{
+			res = (char)(n % 10 + 48) + res;
+			n /= 10;
+		}
+		if(res == "") return "0";
+		return res;
+	}
+
 	//////////////////////////////////////
 	//sets
 	//////////////////////////////////////
@@ -880,13 +934,19 @@ namespace gui
 	void TextBox::setSize(sf::Vector2f psize)
 	{
 		if(win == nullptr) return;
-		size = psize - sf::Vector2f((scrollbar_x_visible ? scrollbar_size : 0.f), (scrollbar_y_visible ? scrollbar_size : 0.f));
+
+		if(scrollbar_x_visible) psize.y -= scrollbar_size;
+		if(scrollbar_y_visible) psize.x -= scrollbar_size;
+		if(show_line_number) psize.x -= line_number_width;
+
+		size = psize;
 		resetView();
 	}
 
 	void TextBox::setPos(sf::Vector2f ppos)
 	{
 		if(win == nullptr) return;
+		if(show_line_number) ppos.x += line_number_width;
 		pos = ppos;
 		resetView();
 	}
@@ -928,6 +988,7 @@ namespace gui
 	void TextBox::setBackgroundColor(sf::Color color)
 	{
 		background.setFillColor(color);
+		line_view_background.setFillColor(color);
 	}
 
 	void TextBox::setBackgroundImage(sf::String path)
@@ -945,6 +1006,7 @@ namespace gui
 	void TextBox::setFont(sf::Font& _font)
 	{
 		text.setFont(_font);
+		setLineNumber(show_line_number);
 	}
 
 	void TextBox::setTextSize(std::size_t psize)
@@ -953,16 +1015,56 @@ namespace gui
 		text.setCharacterSize(psize);
 		line_height = psize + 10;
 		cursor.setSize({cursor.getSize().x, line_height});
+		setLineNumber(show_line_number);
 	}
 
 	void TextBox::setMultiLines(bool pbool)
 	{
 		multiple_lines = pbool;
+		setLineNumber(show_line_number);
 	}
 
 	void TextBox::setEditable(bool pbool)
 	{
 		editable = pbool;
+	}
+
+	void TextBox::setLineNumber(bool _bool)
+	{
+		if(!multiple_lines) _bool = false;
+		if(!_bool && !show_line_number) return;
+
+		if(_bool && show_line_number)
+		{
+			sf::String temp_s = "0000000";
+			temp_s.substring(0, v_text.size());
+			text.setString(temp_s);
+			float temp_n = text.getLocalBounds().width + 10.f;
+			if(line_number_width != temp_n)
+			{
+				pos += sf::Vector2f(temp_n - line_number_width, 0.f);
+				size -= sf::Vector2f(temp_n - line_number_width, 0.f);
+				line_number_width = temp_n;
+			}
+		}
+		if(!show_line_number && _bool)
+		{
+			sf::String temp_s = "0000000";
+			temp_s.substring(0, v_text.size());
+			text.setString(temp_s);
+			line_number_width = text.getLocalBounds().width + 10.f;
+			pos += sf::Vector2f(line_number_width, 0.f);
+			size -= sf::Vector2f(line_number_width, 0.f);
+		}
+		if(show_line_number && !_bool)
+		{
+			pos -= sf::Vector2f(line_number_width, 0.f);
+			size += sf::Vector2f(line_number_width, 0.f);
+			resetView();
+			return;
+		}
+		show_line_number = _bool;
+		resetView();
 	}
 
 	void TextBox::setCursorPos(sf::Vector2<std::size_t> ppos)
@@ -1008,6 +1110,11 @@ namespace gui
 	bool TextBox::isEditable()
 	{
 		return editable;
+	}
+
+	bool TextBox::isShowingLineNumber()
+	{
+		return show_line_number;
 	}
 
 	bool TextBox::hasFocus()

@@ -219,7 +219,7 @@ void loadWindowIcon(sf::RenderWindow&, std::string);
 void addTab(std::vector<Tab>&, gui::TextBox*, sf::String, size_t&);
 
 int main(int argc, char* argv[])
-{
+{	
 	sf::String current_path = adjustSlash(std::filesystem::current_path().wstring()), exe_path = adjustSlash(getExePath());
 	std::wstring visual_path = current_path;
 
@@ -237,33 +237,73 @@ int main(int argc, char* argv[])
 	bool edit_mode = false;
 	float command_line_height = 30.f;
 
+	//////////////////////////////////////////
+	//          Create/SetUp Info           //
+	//////////////////////////////////////////
+	sf::Text current_file_name, current_file_size, current_file_pos, current_file_encode;
+	//font
+	current_file_name.setFont(font);
+	current_file_size.setFont(font);
+	current_file_pos.setFont(font);
+	current_file_encode.setFont(font);
+	//color
+	current_file_name.setFillColor(sf::Color::White);
+	current_file_size.setFillColor(sf::Color::White);
+	current_file_pos.setFillColor(sf::Color::White);
+	current_file_encode.setFillColor(sf::Color::White);
+	//size
+	current_file_name.setCharacterSize(20);
+	current_file_pos.setCharacterSize(20);
+	current_file_pos.setCharacterSize(20);
+	current_file_encode.setCharacterSize(20);
+	//rect
+	sf::RectangleShape info_background;
+	info_background.setSize(sf::Vector2f(win.getSize().x, 30.f));
+	info_background.setPosition(sf::Vector2f(0.f, win.getSize().y - command_line_height - info_background.getSize().y));
+	info_background.setFillColor(textbox_background_color);
+	info_background.setOutlineThickness(- 2);
+	info_background.setOutlineColor(sf::Color::White);
+
+	/////////////////////////////////////////
+	//        Create TextBox Model         //
+	/////////////////////////////////////////
 	gui::TextBox* base_textbox = new gui::TextBox;
 	base_textbox->init(win);
-	base_textbox->setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height));
+	base_textbox->setScrollbarXVisible(false);
+	base_textbox->setScrollbarYVisible(false);
+	base_textbox->setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height + info_background.getSize().y));
+	base_textbox->setPos(sf::Vector2f(0.f, 0.f));
 	base_textbox->setFocus(true);
 	base_textbox->setFont(font);
 	base_textbox->setTextColor(textbox_text_color);
 	base_textbox->setCursorColor(textbox_cursor_color);
 	base_textbox->setBackgroundColor(textbox_background_color);
 
+	///////////////////////////////////////////////
+	//         Create/SetUp Command Line         //
+	///////////////////////////////////////////////
 	gui::TextBox command_line = *base_textbox;
 	std::vector<sf::String> command_args;
-	command_line.setScrollbarXVisible(false);
-	command_line.setScrollbarYVisible(false);
+	command_line.setLineNumber(false);
 	command_line.setSize(sf::Vector2f((float)win.getSize().x, command_line_height));
 	command_line.setPos(sf::Vector2f(0.f, win.getSize().y - command_line_height));
 	command_line.setFocus(false);
 	command_line.setMultiLines(false);
 	command_line.setBackgroundColor(command_line.getBackgroundColor() + sf::Color(0, 0, 0, 20));
 
+	///////////////////////////////
+	//         Create Tabs       //
+	///////////////////////////////
 	std::vector<Tab> tabs;
 	std::vector<sf::String> file_paths;
 	std::size_t current_file = 0;
 
+	///////////////////////////////
+	//         Read Args         //
+	///////////////////////////////
 	sf::String temp;
 	if(argc > 1)
 	{
-		
 		for(int i = 1; i < argc; i++)
 		{
 			if(!isAbsolutePath(argv[i])) temp = normalizePath(current_path + "/" + adjustSlash(argv[i]));
@@ -305,17 +345,37 @@ int main(int argc, char* argv[])
 		addTab(tabs, base_textbox, "", current_file);
 	}
 
+	/////////////////////////////////////////
+	//        Create/SetUp Explorer        //
+	/////////////////////////////////////////
+	
 	gui::Explore explore;
 	explore.init(win);
 	explore.setFont(font);
 	explore.setCurrentPath(visual_path);
 	explore.setPos(sf::Vector2f(0.f, 0.f));
-	explore.setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height));
+	explore.setSize(sf::Vector2f(win.getSize().x, win.getSize().y - command_line_height));
 	explore.setFileImage(exe_path + "/icons/explorer/file.png");
 	explore.setFolderImage(exe_path + "/icons/explorer/folder.png");
 	explore.setTextSize(20);
 	explore.setSelectionColor(sf::Color(25, 34, 71));
 	explore.setBackgroundColor(sf::Color(141, 169, 196, 35));
+
+	//////////////////////
+	//     Set infos    //
+	//////////////////////
+	if(tabs[current_file].file_path == "")
+	{
+		//value
+		current_file_name.setString("new");
+	}
+	else
+	{
+		//value
+		current_file_name.setString(tabs[current_file].file_path);
+	}
+	//pos
+	current_file_name.setPosition(sf::Vector2f(0.f, info_background.getPosition().y));
 
 	win.setFramerateLimit(60);
 	while(win.isOpen())
@@ -331,7 +391,7 @@ int main(int argc, char* argv[])
 				if(temp != L"")
 				{
 					addTab(tabs, base_textbox, adjustSlash(temp), current_file);
-
+					current_file_name.setString(tabs[current_file].file_path);
 					explore.clearSelectedFile();
 					edit_mode = true;
 					explore_mode = false;
@@ -357,6 +417,7 @@ int main(int argc, char* argv[])
 							explore_mode = false;
 							edit_mode = true;
 						}
+						current_file_name.setString(tabs[current_file].file_path);
 						break;
 					}
 					if(sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
@@ -370,6 +431,7 @@ int main(int argc, char* argv[])
 							{
 								if(current_file == (tabs.size() - 1)) current_file = 0;
 								else current_file++;
+								current_file_name.setString(tabs[current_file].file_path);
 								break;
 							}
 							if(e.key.code == sf::Keyboard::W)
@@ -387,6 +449,29 @@ int main(int argc, char* argv[])
 								{
 									tabs[current_file].textbox.clearText();
 									tabs[current_file].file_path = "";
+								}
+								current_file_name.setString(tabs[current_file].file_path);
+								break;
+							}
+							if(e.key.code == sf::Keyboard::S)
+							{
+								if(!sf::Keyboard::isKeyPressed(sf::Keyboard::LShift))
+								{
+									for(Tab& tab : tabs)
+									{
+										if(!fileWrite(tab.file_path, tab.textbox.getTextAsVector(), tab.utf8_encode))
+										{
+											//error message pop up
+										}
+									}
+									break;
+								}
+								if(!fileWrite(
+									tabs[current_file].file_path, 
+									tabs[current_file].textbox.getTextAsVector(), 
+									tabs[current_file].utf8_encode))
+								{
+									//error message pop up
 								}
 								break;
 							}
@@ -441,6 +526,7 @@ int main(int argc, char* argv[])
 									fileWrite(temp, {L""}, true);
 							}
 							explore.reflash();
+							current_file_name.setString(tabs[current_file].file_path);
 							break;
 						}
 						else if(command_args[0] == "open")
@@ -459,6 +545,64 @@ int main(int argc, char* argv[])
 										explore_mode = false;
 										edit_mode = true;
 									}
+									current_file_name.setString(tabs[current_file].file_path);
+								}
+							}
+							break;
+						}
+						else if(command_args[0] == "del")
+						{
+							for(size_t i = 1; i < command_args.size(); i++)
+							{
+								if(isAbsolutePath(command_args[i])) temp = command_args[i];
+								else temp = visual_path + L"/" + command_args[i];
+								temp = normalizePath(adjustSlash(temp));
+
+								if(!std::filesystem::exists(temp.toWideString())) continue;
+								
+								if(std::filesystem::is_directory(std::filesystem::status(temp.toWideString())))
+								{
+									//del dir
+									std::filesystem::remove(std::filesystem::path(temp));
+									if(temp.toWideString() == explore.getCurrentPath()) explore.parentDirectory();
+									explore.reflash();
+
+									for(size_t i = 0; i < tabs.size(); i++)
+									{
+										if(tabs[i].file_path.getSize() <= temp.getSize()) continue;
+										if(tabs[i].file_path.substring(0, temp.getSize()) != temp) continue;
+
+										if(i == 0 && tabs.size() == 1)
+										{
+											tabs[i].file_path = "";
+											tabs[i].textbox.clearText();
+											break;
+										}
+										tabs.erase(tabs.begin() + i);
+										i--;
+									}
+								}
+								else
+								{
+									//del file
+									std::remove(temp.toAnsiString().c_str());
+									for(size_t i = 0; i < tabs.size(); i++)
+									{
+										if(std::filesystem::path(tabs[i].file_path) == std::filesystem::path(temp))
+										{
+											if(i == 0 && tabs.size() == 1)
+											{
+												tabs[i].file_path = "";
+												tabs[i].textbox.clearText();
+												break;
+											}
+											tabs.erase(tabs.begin() + i);
+											i--;
+										}
+									}
+									explore.reflash();
+									if(current_file >= tabs.size()) current_file = tabs.size() - 1;
+									current_file_name.setString(tabs[current_file].file_path);
 								}
 							}
 							break;
@@ -470,12 +614,20 @@ int main(int argc, char* argv[])
 					view.reset({0, 0, (float)win.getSize().x, (float)win.getSize().y});
 					win.setView(view);
 
-					base_textbox->setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height));
-					for(Tab& tab_i : tabs) tab_i.textbox.setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height));
+					base_textbox->setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height + info_background.getSize().y));
+					
+					for(Tab& tab_i : tabs)
+						tab_i.textbox.setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height + info_background.getSize().y));
+					
 					command_line.setPos(sf::Vector2f(0.f, win.getSize().y - command_line_height));
 					command_line.setSize(sf::Vector2f((float)win.getSize().x, command_line_height));
+					
+					info_background.setPosition(sf::Vector2f(0.f, win.getSize().y - command_line_height - info_background.getSize().y));
+					info_background.setSize(sf::Vector2f((float)win.getSize().x, info_background.getSize().y));
+					
 					explore.setSize((sf::Vector2f)win.getSize() - sf::Vector2f(0.f, command_line_height));
 
+					current_file_name.setPosition(sf::Vector2f(0.f, info_background.getPosition().y));
 					break;
 				case sf::Event::Closed:
 					win.close();
@@ -485,7 +637,12 @@ int main(int argc, char* argv[])
 		win.clear();
 		
 		if(explore_mode) explore.draw();
-		if(edit_mode) tabs[current_file].textbox.draw();
+		if(edit_mode)
+		{
+			tabs[current_file].textbox.draw();
+			win.draw(info_background);
+			win.draw(current_file_name);
+		}
 		command_line.draw();
 
 		win.display();
@@ -520,6 +677,7 @@ void addTab(std::vector<Tab>& tabs, gui::TextBox* bt, sf::String path, size_t& i
 
 	index = tabs.size();
 	tabs.push_back(Tab{*bt, path});
+	tabs[index].textbox.setLineNumber(true);
 	
 	overrideTab:{}
 

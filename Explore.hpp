@@ -37,6 +37,7 @@ namespace gui
 
 		void clearSelectedFile();
 		void reflash();
+		void parentDirectory();
 
 		////////////////////////////////////
 		//              SETS              //
@@ -99,7 +100,6 @@ namespace gui
 		////////////////////////////////////
 
 		void goTo(std::wstring);
-		void parentDirectory();
 		void updateElements();
 
 		void resetView();

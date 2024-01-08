@@ -68,6 +68,7 @@ namespace gui
 		void setTextSize(std::size_t);
 		void setMultiLines(bool);
 		void setEditable(bool);
+		void setLineNumber(bool);
 
 		void setCursorPos(sf::Vector2<std::size_t>);
 		void setCursorColor(sf::Color);
@@ -80,6 +81,7 @@ namespace gui
 		float getScrollbarSize();
 		bool isLocked();
 		bool isEditable();
+		bool isShowingLineNumber();
 		bool hasFocus();
 
 		sf::Color getBackgroundColor();
@@ -120,6 +122,10 @@ namespace gui
 		sf::RectangleShape selection_rect;
 		std::vector<sf::Vector3<std::size_t>> selection_lines;
 		bool selecting, mouse_selecting, selection_switch;
+		bool show_line_number;
+		float line_number_width;
+		sf::View line_number_view;
+		sf::RectangleShape line_view_background;
 
 		std::vector<Interval> intervals;
 
@@ -158,6 +164,7 @@ namespace gui
 		void checkIntervalWidth(size_t, size_t, size_t&);
 		sf::Vector2<std::size_t> nextSymbol(bool, std::size_t, std::size_t);
 		sf::Vector2i getMousePosInView();
+		sf::String toString(int);
 		/*--------------------------------------------------------------------------------------------*/
 	};
 }
